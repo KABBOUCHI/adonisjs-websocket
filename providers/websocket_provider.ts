@@ -94,7 +94,6 @@ export default class WebsocketProvider {
 
     const nodeServer = server.getNodeServer()
     if (!nodeServer) {
-      console.log('no node server')
       return
     }
 

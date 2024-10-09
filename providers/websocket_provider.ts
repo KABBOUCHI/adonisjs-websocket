@@ -149,16 +149,21 @@ export default class WebsocketProvider {
         })
 
         wss.handleUpgrade(req, socket, head, async (ws) => {
-          if (typeof wsRoute.route.handler === 'function') {
-            await wsRoute.route.handler({
-              ...ctx,
-              ws,
-            } as any)
-          } else {
-            await wsRoute.route.handler.handle(ctx.containerResolver, {
-              ...ctx,
-              ws,
-            } as any)
+          try {
+            if (typeof wsRoute.route.handler === 'function') {
+              await wsRoute.route.handler({
+                ...ctx,
+                ws,
+              } as any)
+            } else {
+              await wsRoute.route.handler.handle(ctx.containerResolver, {
+                ...ctx,
+                ws,
+              } as any)
+            }
+          } catch (error) {
+            ws.emit('close', 1000, error.message)
+            socket.end()
           }
         })
       } catch (error) {

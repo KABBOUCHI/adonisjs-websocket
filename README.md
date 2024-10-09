@@ -45,4 +45,5 @@ router.ws(
 
 ```bash
 npx wscat -c 'ws://localhost:3333/rooms/1' -H 'Authorization: Bearer oat_MjU.Z25o...'
+npx wscat -c 'ws://localhost:3333/rooms/1?token=oat_MjU.Z25o...'
 ```

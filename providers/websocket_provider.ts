@@ -149,6 +149,10 @@ export default class WebsocketProvider {
         })
 
         wss.handleUpgrade(req, socket, head, async (ws) => {
+          this.app.terminating(async () => {
+            ws.close(1000, 'Server is shutting down')
+          })
+
           try {
             if (typeof wsRoute.route.handler === 'function') {
               await wsRoute.route.handler({
@@ -162,7 +166,7 @@ export default class WebsocketProvider {
               } as any)
             }
           } catch (error) {
-            ws.emit('close', 1000, error.message)
+            ws.close(1000, error.message)
             socket.end()
           }
         })

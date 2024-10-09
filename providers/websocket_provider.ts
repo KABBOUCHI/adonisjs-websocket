@@ -129,7 +129,7 @@ export default class WebsocketProvider {
         return socket.end()
       }
 
-      const wsRoute = wsRouter.match(req.url, 'GET')
+      const wsRoute = wsRouter.match(req.url.split('?')[0], 'GET')
 
       if (!wsRoute) {
         return socket.end()

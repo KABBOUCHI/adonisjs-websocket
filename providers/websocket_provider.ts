@@ -98,6 +98,11 @@ export default class WebsocketProvider {
     }
 
     const wss = new WebSocketServer({ noServer: true })
+    // this.app.terminating doesn't work when websocket is used
+    process.on('SIGTERM', async () => {
+      wss.clients.forEach((client) => client.close(1000, 'Server shutting down'))
+      wss.close()
+    })
     const wsRouter = new Router(
       this.app,
       await this.app.container.make('encryption'),
@@ -149,10 +154,6 @@ export default class WebsocketProvider {
         })
 
         wss.handleUpgrade(req, socket, head, async (ws) => {
-          this.app.terminating(async () => {
-            ws.close(1000, 'Server is shutting down')
-          })
-
           try {
             if (typeof wsRoute.route.handler === 'function') {
               await wsRoute.route.handler({

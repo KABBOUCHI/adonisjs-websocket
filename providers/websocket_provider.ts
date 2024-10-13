@@ -8,22 +8,13 @@ import {
 import { Router } from '@adonisjs/http-server'
 import { LazyImport } from '@adonisjs/http-server/types'
 import { QsParserFactory } from '@adonisjs/http-server/factories'
-import { WebSocketServer, WebSocket } from 'ws'
-import type { HttpContext } from '@adonisjs/core/http'
+import { WebSocket, WebSocketServer } from 'ws'
 import { moduleImporter } from '@adonisjs/core/container'
 import { ServerResponse } from 'node:http'
-
-export type WebSocketContext = { ws: WebSocket } & Omit<HttpContext, 'response'>
-
-type WsRouteFn = (ctx: WebSocketContext) => void
-type GetWsControllerHandlers<Controller extends Constructor<any>> = {
-  [K in keyof InstanceType<Controller>]: InstanceType<Controller>[K] extends (
-    ctx: WebSocketContext,
-    ...args: any[]
-  ) => any
-    ? K
-    : never
-}[keyof InstanceType<Controller>]
+import type { GetWsControllerHandlers, WsRouteFn } from '../src/types.js'
+import { defineConfig } from '../src/define_config.js'
+import { Redis } from 'ioredis'
+import { cuid } from '@adonisjs/core/helpers'
 
 declare module '@adonisjs/core/http' {
   interface Router {
@@ -57,7 +48,6 @@ export default class WebsocketProvider {
    */
   async boot() {
     const router = await this.app.container.make('router')
-
     router.ws = (pattern, handler, middleware = []) => {
       routes.set(pattern, {
         pattern,
@@ -88,13 +78,38 @@ export default class WebsocketProvider {
   async ready() {
     const server = await this.app.container.make('server')
     if (!server) {
-      console.log('no server')
       return
     }
 
     const nodeServer = server.getNodeServer()
     if (!nodeServer) {
       return
+    }
+
+    const config = this.app.config.get<ReturnType<typeof defineConfig>>('websocket', {})
+    const channels = new Map<string, Map<string, WebSocket & { id: string }>>()
+
+    const publisher = config.redis.enabled ? new Redis(config.redis) : null
+    const subscriber = config.redis.enabled ? new Redis(config.redis) : null
+
+    if (subscriber) {
+      subscriber.subscribe('websocket::broadcast')
+      subscriber.on('message', (c, message) => {
+        if (c === 'websocket::broadcast') {
+          const { channel, data, options, clientId } = JSON.parse(message)
+          const clients = channels.get(channel) || new Map<string, WebSocket & { id: string }>()
+
+          for (const client of clients.values()) {
+            if (options && options.ignoreSelf && client.id === clientId) {
+              continue
+            }
+
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(data)
+            }
+          }
+        }
+      })
     }
 
     const wss = new WebSocketServer({ noServer: true })
@@ -109,16 +124,9 @@ export default class WebsocketProvider {
       new QsParserFactory().create()
     )
 
-    const globalMiddleware: any[] = [
-      // moduleImporter(
-      //   () => import('#middleware/container_bindings_middleware'),
-      //   'handle'
-      // ).toHandleMethod(this.app.container),
-      // moduleImporter(
-      //   () => import('@adonisjs/auth/initialize_auth_middleware'),
-      //   'handle'
-      // ).toHandleMethod(this.app.container),
-    ]
+    const globalMiddleware: any[] = config.middleware.map((m) =>
+      moduleImporter(m, 'handle').toHandleMethod(this.app.container)
+    )
 
     for (const route of routes.values()) {
       wsRouter
@@ -134,7 +142,8 @@ export default class WebsocketProvider {
         return socket.end()
       }
 
-      const wsRoute = wsRouter.match(req.url.split('?')[0], 'GET')
+      const url = req.url.split('?')[0]
+      const wsRoute = wsRouter.match(url, 'GET')
 
       if (!wsRoute) {
         return socket.end()
@@ -153,7 +162,48 @@ export default class WebsocketProvider {
           return handler.handle(ctx, next, handler.args)
         })
 
+        const clientId = cuid()
+
         wss.handleUpgrade(req, socket, head, async (ws) => {
+          if (!channels.has(url)) {
+            channels.set(url, new Map())
+          }
+
+          // @ts-ignore
+          ws.id = clientId
+          channels.get(url)!.set(clientId, ws as any)
+
+          ws.on('close', () => {
+            channels.get(url)!.delete(clientId)
+          })
+
+          // @ts-ignore
+          ws.broadcast = (data: string, options: any) => {
+            if (publisher) {
+              publisher.publish(
+                'websocket::broadcast',
+                JSON.stringify({
+                  channel: url,
+                  data,
+                  clientId,
+                  options,
+                })
+              )
+            } else {
+              const clients = channels.get(url) || new Map<string, WebSocket & { id: string }>()
+
+              for (const client of clients.values()) {
+                if (options && options.ignoreSelf && client.id === clientId) {
+                  continue
+                }
+
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(data)
+                }
+              }
+            }
+          }
+
           try {
             if (typeof wsRoute.route.handler === 'function') {
               await wsRoute.route.handler({
@@ -168,6 +218,7 @@ export default class WebsocketProvider {
             }
           } catch (error) {
             ws.close(1000, error.message)
+            channels.get(url)!.delete(clientId)
             socket.end()
           }
         })

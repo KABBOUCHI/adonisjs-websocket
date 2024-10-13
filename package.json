@@ -1,7 +1,7 @@
 {
   "name": "adonisjs-websocket",
   "description": "Websocket provider for AdonisJS",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "engines": {
     "node": ">=20.6.0"
   },
@@ -85,6 +85,7 @@
   },
   "prettier": "@adonisjs/prettier-config",
   "dependencies": {
+    "ioredis": "^5.4.1",
     "ws": "^8.18.0"
   }
 }

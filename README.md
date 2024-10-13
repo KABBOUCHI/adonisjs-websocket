@@ -13,6 +13,10 @@ router.ws('/ws', ({ ws }) => {
     ws.send('Received: ' + message.toString())
   })
 
+  ws.on('close', () => {
+    console.log('Connection closed')
+  })
+
   ws.send('Hello! Your id is ' + ws.id)
 })
 ```

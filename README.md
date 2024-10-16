@@ -46,8 +46,10 @@ router.ws(
     ws.broadcast('Hello everyone!')
   },
   [
+    // you can enable them globally in `config/websocket.ts`
     () => import('#middleware/container_bindings_middleware'),
     () => import('@adonisjs/auth/initialize_auth_middleware'),
+
     middleware.auth(),
   ]
 )

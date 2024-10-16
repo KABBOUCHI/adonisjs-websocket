@@ -8,13 +8,14 @@ import {
 import { Router } from '@adonisjs/http-server'
 import { LazyImport } from '@adonisjs/http-server/types'
 import { QsParserFactory } from '@adonisjs/http-server/factories'
-import { WebSocket, WebSocketServer } from 'ws'
+import { WebSocketServer } from 'ws'
 import { moduleImporter } from '@adonisjs/core/container'
 import { ServerResponse } from 'node:http'
 import type { GetWsControllerHandlers, WsRouteFn } from '../src/types.js'
 import { defineConfig } from '../src/define_config.js'
 import { Redis } from 'ioredis'
 import { cuid } from '@adonisjs/core/helpers'
+import { WebSocket } from '../src/websocket.js'
 
 declare module '@adonisjs/core/http' {
   interface Router {
@@ -87,7 +88,7 @@ export default class WebsocketProvider {
     }
 
     const config = this.app.config.get<ReturnType<typeof defineConfig>>('websocket', {})
-    const channels = new Map<string, Map<string, WebSocket & { id: string }>>()
+    const channels = new Map<string, Map<string, WebSocket>>()
 
     const publisher = config.redis.enabled ? new Redis(config.redis) : null
     const subscriber = config.redis.enabled ? new Redis(config.redis) : null
@@ -97,7 +98,7 @@ export default class WebsocketProvider {
       subscriber.on('message', (c, message) => {
         if (c === 'websocket::broadcast') {
           const { channel, data, options, clientId } = JSON.parse(message)
-          const clients = channels.get(channel) || new Map<string, WebSocket & { id: string }>()
+          const clients = channels.get(channel) || new Map<string, WebSocket>()
 
           for (const client of clients.values()) {
             if (options && options.ignoreSelf && client.id === clientId) {
@@ -112,7 +113,10 @@ export default class WebsocketProvider {
       })
     }
 
-    const wss = new WebSocketServer({ noServer: true })
+    const wss = new WebSocketServer({
+      noServer: true,
+      WebSocket,
+    })
     // this.app.terminating doesn't work when websocket is used
     process.on('SIGTERM', async () => {
       wss.clients.forEach((client) => client.close(1000, 'Server shutting down'))
@@ -169,7 +173,6 @@ export default class WebsocketProvider {
             channels.set(url, new Map())
           }
 
-          // @ts-ignore
           ws.id = clientId
           channels.get(url)!.set(clientId, ws as any)
 
@@ -177,7 +180,6 @@ export default class WebsocketProvider {
             channels.get(url)!.delete(clientId)
           })
 
-          // @ts-ignore
           ws.broadcast = (data: string, options: any) => {
             if (publisher) {
               publisher.publish(
@@ -190,7 +192,7 @@ export default class WebsocketProvider {
                 })
               )
             } else {
-              const clients = channels.get(url) || new Map<string, WebSocket & { id: string }>()
+              const clients = channels.get(url) || new Map<string, WebSocket>()
 
               for (const client of clients.values()) {
                 if (options && options.ignoreSelf && client.id === clientId) {

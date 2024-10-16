@@ -6,6 +6,8 @@ node ace add adonisjs-websocket
 
 ## Usage
 
+Simple example:
+
 ```ts
 // start/routes.ts
 router.ws('/ws', ({ ws }) => {
@@ -24,6 +26,8 @@ router.ws('/ws', ({ ws }) => {
 ```bash
 npx wscat -c "ws://localhost:3333/ws"
 ```
+
+Middleware and broadcasting:
 
 ```ts
 // start/routes.ts
@@ -59,4 +63,35 @@ router.ws(
 npx wscat -c 'ws://localhost:3333/rooms/1' -H 'Authorization: Bearer oat_MjU.Z25o...'
 npx wscat -c 'ws://localhost:3333/rooms/2?token=oat_MjU.Z25o...'
 npx wscat -c 'ws://localhost:3334/rooms/2?token=oat_MjU.Z25o...'
+```
+
+For browsers, it's common practice to send a small message (heartbeat) for every given time passed (e.g every 30sec) to keep the connection active.
+
+```ts
+// frontend
+const ws = new WebSocket('wss://localhost:3333/ws')
+
+const HEARTBEAT_INTERVAL = 30000
+let heartbeatInterval
+
+ws.onopen = () => {
+  heartbeatInterval = setInterval(() => {
+    ws.send('ping')
+  }, HEARTBEAT_INTERVAL)
+}
+
+ws.onclose = () => {
+  clearInterval(heartbeatInterval)
+}
+```
+
+```ts
+// backend
+router.ws('/ws', ({ ws }) => {
+  ws.on('message', (message) => {
+    if (message.toString() === 'ping') {
+      ws.send('pong')
+    }
+  })
+})
 ```

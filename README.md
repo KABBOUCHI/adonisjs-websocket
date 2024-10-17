@@ -69,16 +69,16 @@ Using controllers:
 
 ```ts
 // start/routes.ts
-const WsChatController = () => import('#controllers/ws_chat_controller')
+const WsChatController = () => import('#controllers/ws/chat_controller')
 
 router.ws('/chat', [WsChatController, 'handle'])
 ```
 
 ```ts
-// app/Controllers/Ws/ChatController.ts
+// app/controllers/ws/chat_controller.ts
 import type { WebSocketContext } from 'adonisjs-websocket'
 
-export default class WsChatController {
+export default class ChatController {
   public async handle({ ws }: WebSocketContext) {
     ws.on('message', (message) => {
       ws.send('Received: ' + message.toString())

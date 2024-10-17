@@ -65,6 +65,30 @@ npx wscat -c 'ws://localhost:3333/rooms/2?token=oat_MjU.Z25o...'
 npx wscat -c 'ws://localhost:3334/rooms/2?token=oat_MjU.Z25o...'
 ```
 
+Using controllers:
+
+```ts
+// start/routes.ts
+const WsChatController = () => import('#controllers/ws_chat_controller')
+
+router.ws('/chat', [WsChatController, 'handle'])
+```
+
+```ts
+// app/Controllers/Ws/ChatController.ts
+import type { WebSocketContext } from 'adonisjs-websocket'
+
+export default class WsChatController {
+  public async handle({ ws }: WebSocketContext) {
+    ws.on('message', (message) => {
+      ws.send('Received: ' + message.toString())
+    })
+
+    ws.send('Hello! Your id is ' + ws.id)
+  }
+}
+```
+
 For browsers, it's common practice to send a small message (heartbeat) for every given time passed (e.g every 30sec) to keep the connection active.
 
 ```ts

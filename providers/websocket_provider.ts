@@ -33,7 +33,7 @@ declare module '@adonisjs/core/types' {
       /**
        * @experimental This API is not stable and may change in future versions.
        */
-      broadcast: (url: string, data: string) => void
+      broadcast: (url: string, data: string) => Promise<void>
     }
   }
 }
@@ -147,9 +147,9 @@ export default class WebsocketProvider {
     wsRouter.commit()
 
     this.app.container.singleton('websocket', () => ({
-      broadcast: (url: string, data: string) => {
+      broadcast: async (url: string, data: string) => {
         if (publisher) {
-          publisher.publish(
+          await publisher.publish(
             'websocket::broadcast',
             JSON.stringify({
               channel: url,
@@ -212,9 +212,9 @@ export default class WebsocketProvider {
             channels.get(url)!.delete(clientId)
           })
 
-          ws.broadcast = (data: string, options: any) => {
+          ws.broadcast = async (data: string, options: any) => {
             if (publisher) {
-              publisher.publish(
+              await publisher.publish(
                 'websocket::broadcast',
                 JSON.stringify({
                   channel: url,

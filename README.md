@@ -47,7 +47,7 @@ router.ws(
 
     // broadcast to all clients of the same url path
     // you can enable redis in `config/websocket.ts` to broadcast on all web server instances
-    ws.broadcast('Hello everyone!')
+    await ws.broadcast('Hello everyone!')
   },
   [
     // you can enable them globally in `config/websocket.ts`

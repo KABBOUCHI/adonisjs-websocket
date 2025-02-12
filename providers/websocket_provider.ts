@@ -27,6 +27,16 @@ declare module '@adonisjs/core/http' {
   }
 }
 
+declare module '@adonisjs/core/types' {
+  export interface ContainerBindings {
+    websocket: {
+      /**
+       * @experimental This API is not stable and may change in future versions.
+       */
+      broadcast: (url: string, data: string) => void
+    }
+  }
+}
 const routes = new Map<
   string,
   {
@@ -79,11 +89,6 @@ export default class WebsocketProvider {
   async ready() {
     const server = await this.app.container.make('server')
     if (!server) {
-      return
-    }
-
-    const nodeServer = server.getNodeServer()
-    if (!nodeServer) {
       return
     }
 
@@ -141,6 +146,33 @@ export default class WebsocketProvider {
 
     wsRouter.commit()
 
+    this.app.container.singleton('websocket', () => ({
+      broadcast: (url: string, data: string) => {
+        if (publisher) {
+          publisher.publish(
+            'websocket::broadcast',
+            JSON.stringify({
+              channel: url,
+              data,
+              clientId: null,
+            })
+          )
+        } else {
+          const clients = channels.get(url) || new Map<string, WebSocket>()
+
+          for (const client of clients.values()) {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(data)
+            }
+          }
+        }
+      },
+    }))
+
+    const nodeServer = server.getNodeServer()
+    if (!nodeServer) {
+      return
+    }
     nodeServer.on('upgrade', async (req, socket, head) => {
       if (!req.url) {
         return socket.end()

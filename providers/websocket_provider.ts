@@ -122,10 +122,38 @@ export default class WebsocketProvider {
       noServer: true,
       WebSocket,
     })
+
+    this.app.terminating(() => {
+      try {
+        publisher?.disconnect()
+      } catch {}
+      try {
+        subscriber?.disconnect()
+      } catch {}
+
+      try {
+        wss.clients.forEach((client) => client.close(1000, 'Server shutting down'))
+      } catch {}
+
+      try {
+        wss.close()
+      } catch {}
+    })
     // this.app.terminating doesn't work when websocket is used
     process.on('SIGTERM', async () => {
-      wss.clients.forEach((client) => client.close(1000, 'Server shutting down'))
-      wss.close()
+      try {
+        publisher?.disconnect()
+      } catch {}
+      try {
+        subscriber?.disconnect()
+      } catch {}
+      try {
+        wss.clients.forEach((client) => client.close(1000, 'Server shutting down'))
+      } catch {}
+
+      try {
+        wss.close()
+      } catch {}
     })
     const wsRouter = new Router(
       this.app,
